@@ -32,7 +32,9 @@ await build({
     logLevel: "info"
 });
 
-// 3) Page add-in host file.
+// 3) Page add-in host file + translations stub (MyGeotab requests it).
 copyFileSync(join(here, "src/index.html"), join(here, "dist/index.html"));
+mkdirSync(join(here, "dist/translations"), { recursive: true });
+copyFileSync(join(here, "src/translations/en.json"), join(here, "dist/translations/en.json"));
 
 console.log("Build complete -> dist/addin.js");
