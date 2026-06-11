@@ -259,6 +259,7 @@ export function resolveSchedule(s, ctx) {
 
     return {
         id: s.id,
+        templateId: refId(s.template) || null,
         name,
         format: s.destination === "EmailPdf" ? "PDF" : s.destination === "EmailExcel" ? "Excel" : (s.destination || ""),
         frequency: freq ? String(freq.value) : "",

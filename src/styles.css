@@ -240,6 +240,19 @@
     word-break: break-all;
 }
 
+.rr-focusbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #eef6fd;
+    border: 1px solid #b8dcf5;
+    border-radius: 6px;
+    padding: 4px 8px 4px 12px;
+    font-size: 13px;
+    color: #00529c;
+    margin-bottom: 10px;
+}
+
 /* Page (standalone add-in) mode fills its container */
 .rr-page-host {
     min-height: 400px;

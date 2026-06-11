@@ -37,7 +37,21 @@ function closeOverlay() {
     }
 }
 
-function openOverlay(api) {
+/**
+ * When the button is clicked from a single report's edit page, try to find
+ * which report we're on so the overlay can pre-filter to it.
+ */
+function detectFocusReportId(state) {
+    try {
+        const s = state && typeof state.getState === "function" ? state.getState() : state;
+        const cand = s && (s.id || s.reportId || (s.params && (s.params.id || s.params.reportId)));
+        if (cand && typeof cand === "string") return cand;
+    } catch (e) { /* fall through to hash parsing */ }
+    const m = (window.location.hash || "").match(/(?:reportId|currentReport|id):([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+}
+
+function openOverlay(api, focusReportId) {
     if (overlay) return; // already open
     ensureStyles();
     overlay = document.createElement("div");
@@ -56,13 +70,15 @@ function openOverlay(api) {
     });
     document.body.appendChild(overlay);
     overlayRoot = createRoot(panel);
-    overlayRoot.render(<App api={api} mode="overlay" onClose={closeOverlay} />);
+    overlayRoot.render(
+        <App api={api} mode="overlay" onClose={closeOverlay} focusReportId={focusReportId || null} />
+    );
 }
 
 if (typeof geotab !== "undefined") {
     geotab.customButtons = geotab.customButtons || {};
-    geotab.customButtons.showReportRecipients = function (event, api /*, state */) {
-        openOverlay(api);
+    geotab.customButtons.showReportRecipients = function (event, api, state) {
+        openOverlay(api, detectFocusReportId(state));
     };
 
     /* --------------------------- page add-in mode --------------------------- */

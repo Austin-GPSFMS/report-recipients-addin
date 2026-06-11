@@ -77,7 +77,7 @@ function ReportRow({ report, expanded, onToggle }) {
     );
 }
 
-export default function App({ api, mode, onClose }) {
+export default function App({ api, mode, onClose, focusReportId }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [model, setModel] = useState(null);
@@ -85,6 +85,22 @@ export default function App({ api, mode, onClose }) {
     const [query, setQuery] = useState("");
     const [expanded, setExpanded] = useState(() => new Set());
     const [showDiag, setShowDiag] = useState(false);
+    const [focusOnly, setFocusOnly] = useState(!!focusReportId);
+
+    // Reports matching the report page the button was clicked from.
+    const focusMatches = useMemo(() => {
+        if (!model || !focusReportId) return [];
+        return model.reports.filter(
+            r => r.id === focusReportId || r.templateId === focusReportId
+        );
+    }, [model, focusReportId]);
+
+    // Auto-expand when focused on a single report.
+    useEffect(() => {
+        if (focusOnly && focusMatches.length > 0) {
+            setExpanded(new Set(focusMatches.map(r => r.id)));
+        }
+    }, [focusOnly, focusMatches]);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -107,16 +123,17 @@ export default function App({ api, mode, onClose }) {
 
     const filtered = useMemo(() => {
         if (!model) return [];
+        const base = focusOnly && focusMatches.length > 0 ? focusMatches : model.reports;
         const q = query.trim().toLowerCase();
-        if (!q) return model.reports;
-        return model.reports.filter(r =>
+        if (!q) return base;
+        return base.filter(r =>
             r.name.toLowerCase().includes(q) ||
             r.recipients.some(rec =>
                 rec.name.toLowerCase().includes(q) ||
                 (rec.email || "").toLowerCase().includes(q)
             )
         );
-    }, [model, query]);
+    }, [model, query, focusOnly, focusMatches]);
 
     const toggle = id => setExpanded(prev => {
         const next = new Set(prev);
@@ -171,6 +188,15 @@ export default function App({ api, mode, onClose }) {
                 <Banner type="error" header="Could not load report schedules" multiline>
                     {error}
                 </Banner>
+            )}
+
+            {!loading && focusOnly && focusMatches.length > 0 && (
+                <div className="rr-focusbar">
+                    <span>Showing recipients for this report only.</span>
+                    <Button type="tertiary" onClick={() => setFocusOnly(false)}>
+                        Show all emailed reports
+                    </Button>
+                </div>
             )}
 
             <Waiting isLoading={loading} description="Loading report schedules…" />
