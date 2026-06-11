@@ -1,0 +1,246 @@
+/* Report Recipients add-in — custom styles (Zenith-token friendly) */
+
+.rr-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    background: rgba(16, 24, 40, 0.45);
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.rr-panel {
+    background: #fff;
+    margin: 24px;
+    border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.rr-root {
+    font-family: Roboto, "Segoe UI", Arial, sans-serif;
+    color: #1c2a3a;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    padding: 20px 24px;
+    overflow: auto;
+    background: #fff;
+}
+
+.rr-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.rr-title {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 2px;
+}
+
+.rr-stats {
+    color: #56637a;
+    font-size: 13px;
+}
+
+.rr-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.rr-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 16px 0 12px;
+}
+
+.rr-search {
+    flex: 1;
+    max-width: 480px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #c5cee0;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+}
+
+.rr-search:focus {
+    border-color: #0078d3;
+    box-shadow: 0 0 0 2px rgba(0, 120, 211, 0.2);
+}
+
+.rr-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.rr-report {
+    border: 1px solid #dde3ee;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.rr-report--open {
+    border-color: #0078d3;
+}
+
+.rr-report__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.rr-report__head:hover {
+    background: #f4f7fb;
+}
+
+.rr-caret {
+    color: #56637a;
+    width: 12px;
+    flex: none;
+}
+
+.rr-report__name {
+    font-weight: 500;
+    font-size: 14px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rr-report__chips {
+    display: flex;
+    gap: 6px;
+    flex: none;
+    align-items: center;
+}
+
+.rr-chip {
+    display: inline-block;
+    font-size: 11px;
+    line-height: 18px;
+    padding: 0 8px;
+    border-radius: 9px;
+    background: #e8edf5;
+    color: #38465c;
+    white-space: nowrap;
+}
+
+.rr-chip--count {
+    background: #d9ecfb;
+    color: #00529c;
+    font-weight: 600;
+}
+
+.rr-chip--ok {
+    background: #ddf3e4;
+    color: #1c7838;
+}
+
+.rr-chip--warn {
+    background: #fdf0d5;
+    color: #946300;
+}
+
+.rr-chip--error {
+    background: #fbdddd;
+    color: #b3261e;
+    font-weight: 600;
+}
+
+.rr-detail {
+    border-top: 1px solid #e6ebf4;
+    padding: 12px 14px 14px 36px;
+}
+
+.rr-sources {
+    font-size: 12px;
+    color: #56637a;
+    margin-bottom: 8px;
+}
+
+.rr-none {
+    font-size: 13px;
+    color: #946300;
+}
+
+.rr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.rr-table th {
+    text-align: left;
+    font-weight: 600;
+    color: #38465c;
+    background: #f0f3f9;
+    padding: 6px 10px;
+    border-bottom: 2px solid #dde3ee;
+}
+
+.rr-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #edf1f7;
+    vertical-align: top;
+}
+
+.rr-table tr:hover td {
+    background: #f8fafd;
+}
+
+.rr-via {
+    color: #56637a;
+}
+
+.rr-diag {
+    margin-top: 18px;
+    border-top: 1px dashed #dde3ee;
+    padding-top: 8px;
+}
+
+.rr-diag__toggle {
+    background: none;
+    border: 0;
+    color: #8a94a6;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.rr-diag__body {
+    font-size: 11px;
+    color: #8a94a6;
+    margin-top: 4px;
+    word-break: break-all;
+}
+
+/* Page (standalone add-in) mode fills its container */
+.rr-page-host {
+    min-height: 400px;
+}

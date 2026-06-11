@@ -1,0 +1,20 @@
+{
+  "name": "report-recipients-addin",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MyGeotab add-in: lists every emailed report and all of its resolved recipients. Fast on large databases (single multiCall, client-side join). Built with Geotab Zenith.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node tests/test-model.mjs"
+  },
+  "dependencies": {
+    "@geotab/zenith": "^3.10.0",
+    "exceljs": "^4.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
