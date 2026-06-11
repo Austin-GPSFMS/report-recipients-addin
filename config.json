@@ -5,7 +5,7 @@
   "items": [
     {
       "page": "reportSetup",
-      "click": "https://Austin-GPSFMS.github.io/report-recipients-addin/addin.js",
+      "click": "https://Austin-GPSFMS.github.io/report-recipients-addin/dist/addin.js",
       "buttonName": {
         "en": "Show All Recipients",
         "es": "Mostrar Destinatarios"
@@ -13,14 +13,14 @@
     },
     {
       "page": "customReport",
-      "click": "https://Austin-GPSFMS.github.io/report-recipients-addin/addin.js",
+      "click": "https://Austin-GPSFMS.github.io/report-recipients-addin/dist/addin.js",
       "buttonName": {
         "en": "Show All Recipients",
         "es": "Mostrar Destinatarios"
       }
     },
     {
-      "url": "https://Austin-GPSFMS.github.io/report-recipients-addin/index.html",
+      "url": "https://Austin-GPSFMS.github.io/report-recipients-addin/dist/index.html",
       "path": "ReportsLink/",
       "menuName": {
         "en": "Report Recipients",
