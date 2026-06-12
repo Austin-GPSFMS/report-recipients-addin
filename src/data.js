@@ -57,7 +57,7 @@ export async function loadAll(api) {
         ["Get", getCall("CustomReportSchedule")],
         ["Get", getCall("User", [
             "id", "name", "firstName", "lastName",
-            "companyGroups", "reportGroups",
+            "companyGroups", "reportGroups", "privateUserGroups",
             "isEmailReportEnabled", "activeTo", "isDriver"
         ])],
         ["Get", getCall("Group", ["id", "name", "children", "reference"])],
@@ -138,7 +138,7 @@ export function isArchived(u) {
 
 function userGroupIds(u) {
     const ids = [];
-    for (const key of ["companyGroups", "reportGroups"]) {
+    for (const key of ["companyGroups", "reportGroups", "privateUserGroups"]) {
         for (const g of u[key] || []) {
             ids.push(typeof g === "string" ? g : g.id);
         }
@@ -221,8 +221,14 @@ export function resolveSchedule(s, ctx) {
         groupSources.push(label);
         matchUsersToSet(expandDirectChildren(gid, groupsById), label);
     }
-    // Some payloads expose a typed `groups` list instead.
-    for (const entry of s.groups || []) {
+    // Fallback only: some older payloads expose a single `groups` list instead
+    // of the include*Groups pair. When include*Groups exist, `groups` is a
+    // combined list that also contains the DATA-SCOPE group - using it would
+    // wrongly count the whole scope (e.g. all of Company Group) as recipients.
+    const hasExplicitRecipientGroups =
+        (s.includeAllChildrenGroups || []).length > 0 ||
+        (s.includeDirectChildrenOnlyGroups || []).length > 0;
+    for (const entry of hasExplicitRecipientGroups ? [] : s.groups || []) {
         if (!entry || typeof entry !== "object") continue;
         const gid = refId(entry.group || entry);
         if (!gid) continue;
@@ -258,6 +264,8 @@ export function resolveSchedule(s, ctx) {
         };
     }).sort((a, b) => a.name.localeCompare(b.name));
 
+    const uniqueGroupSources = [...new Set(groupSources)];
+
     return {
         id: s.id,
         templateId: refId(s.template) || null,
@@ -266,7 +274,7 @@ export function resolveSchedule(s, ctx) {
         frequency: freq ? String(freq.value) : "",
         nextRun: nextRun ? String(nextRun.value) : "",
         isActive: active,
-        groupSources,
+        groupSources: uniqueGroupSources,
         recipients,
         redirectedTo,
         unknownKeys: Object.keys(s).filter(k => !KNOWN_KEYS.has(k))
