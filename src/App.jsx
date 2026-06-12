@@ -56,7 +56,9 @@ function RecipientTable({ report }) {
                         {rows.map(rec => (
                             <tr key={rec.userId}>
                                 <td>{rec.name}</td>
-                                <td>{rec.noEmail ? "" : rec.email}</td>
+                                <td>{rec.noEmail
+                                    ? <span className="rr-username" title="Username only — not a deliverable email">{rec.email}</span>
+                                    : rec.email}</td>
                                 <td className="rr-via">{rec.via.join("; ")}</td>
                                 <td>
                                     {rec.unknown && <Chip kind="error">Unknown user</Chip>}
@@ -81,7 +83,7 @@ function RecipientTable({ report }) {
     );
 }
 
-function ReportRow({ report, expanded, onToggle }) {
+function ReportRow({ report, expanded, onToggle, countLabel }) {
     const broken = report.visibleRecipients.length === 0 && report.hiddenCount === 0;
     return (
         <div className={"rr-report" + (expanded ? " rr-report--open" : "")}>
@@ -93,7 +95,7 @@ function ReportRow({ report, expanded, onToggle }) {
                     {report.format && <Chip>{report.format}</Chip>}
                     {report.frequency && <Chip>{report.frequency}</Chip>}
                     <Chip kind={broken ? "error" : "count"}>
-                        {report.visibleRecipients.length} receiving
+                        {report.visibleRecipients.length} {countLabel}
                     </Chip>
                     {report.hiddenCount > 0 && <Chip>+{report.hiddenCount} filtered</Chip>}
                 </span>
@@ -112,8 +114,9 @@ export default function App({ api, mode, onClose, focusReportId }) {
     const [expanded, setExpanded] = useState(() => new Set());
     const [showDiag, setShowDiag] = useState(false);
     const [focusOnly, setFocusOnly] = useState(!!focusReportId);
-    // Hidden-by-default recipient categories; tick to reveal.
-    const [filters, setFilters] = useState({ archived: false, optedOut: false, noEmail: false });
+    // Category view selector: a recipient is shown if any of its
+    // categories is checked. Default: only "receiving" (OK) recipients.
+    const [filters, setFilters] = useState({ ok: true, archived: false, optedOut: false, noEmail: false });
 
     const toggleFilter = key => setFilters(f => ({ ...f, [key]: !f[key] }));
 
@@ -153,14 +156,16 @@ export default function App({ api, mode, onClose, focusReportId }) {
 
     // Counts per category across all reports (for the filter labels).
     const filterCounts = useMemo(() => {
-        const c = { archived: 0, optedOut: 0, noEmail: 0 };
+        const c = { ok: 0, archived: 0, optedOut: 0, noEmail: 0 };
         if (!model) return c;
         const seen = new Set();
         for (const r of model.reports) {
             for (const rec of r.recipients) {
                 if (seen.has(rec.userId)) continue;
                 seen.add(rec.userId);
-                for (const f of issueFlags(rec)) c[f]++;
+                const flags = issueFlags(rec);
+                if (flags.length === 0) c.ok++;
+                for (const f of flags) c[f]++;
             }
         }
         return c;
@@ -168,7 +173,7 @@ export default function App({ api, mode, onClose, focusReportId }) {
 
     const recVisible = useCallback(rec => {
         const flags = issueFlags(rec);
-        if (flags.length === 0) return true;
+        if (flags.length === 0) return filters.ok;
         return flags.some(f => filters[f]);
     }, [filters]);
 
@@ -198,6 +203,10 @@ export default function App({ api, mode, onClose, focusReportId }) {
         next.has(id) ? next.delete(id) : next.add(id);
         return next;
     });
+
+    // Chip label: "receiving" only when the view is exactly the OK set.
+    const countLabel = filters.ok && !filters.archived && !filters.optedOut && !filters.noEmail
+        ? "receiving" : "shown";
 
     const doExport = () => exportToExcel(
         { ...model, reports: filtered.map(r => ({ ...r, recipients: r.visibleRecipients })) },
@@ -246,7 +255,11 @@ export default function App({ api, mode, onClose, focusReportId }) {
 
             {!loading && model && (
                 <div className="rr-filters">
-                    <span className="rr-filters__label">Also show:</span>
+                    <span className="rr-filters__label">Show:</span>
+                    <label>
+                        <input type="checkbox" checked={filters.ok} onChange={() => toggleFilter("ok")} />
+                        Receiving / OK ({filterCounts.ok})
+                    </label>
                     <label>
                         <input type="checkbox" checked={filters.archived} onChange={() => toggleFilter("archived")} />
                         Archived/removed ({filterCounts.archived})
@@ -259,7 +272,7 @@ export default function App({ api, mode, onClose, focusReportId }) {
                         <input type="checkbox" checked={filters.noEmail} onChange={() => toggleFilter("noEmail")} />
                         No email address ({filterCounts.noEmail})
                     </label>
-                    <span className="rr-hiddennote">Default view shows only recipients currently receiving the email.</span>
+                    <span className="rr-hiddennote">Tick any combination — e.g. only “Email reports off” for an audit.</span>
                 </div>
             )}
 
@@ -293,6 +306,7 @@ export default function App({ api, mode, onClose, focusReportId }) {
                                 report={r}
                                 expanded={expanded.has(r.id)}
                                 onToggle={() => toggle(r.id)}
+                                countLabel={countLabel}
                             />
                         ))}
                     </div>
