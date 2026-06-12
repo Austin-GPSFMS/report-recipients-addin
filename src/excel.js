@@ -46,6 +46,7 @@ function recipientStatus(rec) {
     if (rec.unknown) flags.push("Unknown user");
     if (rec.archived) flags.push("Archived");
     if (rec.optedOut) flags.push("Email reports off");
+    if (rec.noEmail) flags.push("No email address");
     return flags.length ? flags.join(", ") : "OK";
 }
 

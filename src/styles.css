@@ -257,3 +257,40 @@
 .rr-page-host {
     min-height: 400px;
 }
+
+.rr-filters {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12.5px;
+    color: #38465c;
+    margin: -4px 0 12px;
+    flex-wrap: wrap;
+}
+
+.rr-filters__label {
+    color: #8a94a6;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+}
+
+.rr-filters label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.rr-filters input[type="checkbox"] {
+    accent-color: #0078d3;
+    cursor: pointer;
+}
+
+.rr-hiddennote {
+    font-size: 12.5px;
+    color: #8a94a6;
+    font-style: italic;
+}

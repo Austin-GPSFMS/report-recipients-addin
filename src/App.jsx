@@ -10,7 +10,20 @@ function Chip({ kind, children }) {
     return <span className={"rr-chip rr-chip--" + (kind || "default")}>{children}</span>;
 }
 
+/** Which hidden-by-default categories a recipient falls into. */
+function issueFlags(rec) {
+    const flags = [];
+    if (rec.archived || rec.unknown) flags.push("archived");
+    if (rec.optedOut) flags.push("optedOut");
+    if (rec.noEmail) flags.push("noEmail");
+    return flags;
+}
+
+const MAX_RENDERED_ROWS = 1000;
+
 function RecipientTable({ report }) {
+    const rows = report.visibleRecipients.slice(0, MAX_RENDERED_ROWS);
+    const truncated = report.visibleRecipients.length - rows.length;
     return (
         <div className="rr-detail">
             {report.groupSources.length > 0 && (
@@ -23,8 +36,12 @@ function RecipientTable({ report }) {
                     This report is redirected to: {report.redirectedTo.map(r => r.email || r.name).join(", ")}
                 </Banner>
             )}
-            {report.recipients.length === 0 ? (
-                <div className="rr-none">No individual recipients resolved for this report.</div>
+            {report.visibleRecipients.length === 0 ? (
+                <div className="rr-none">
+                    {report.hiddenCount > 0
+                        ? "All " + report.hiddenCount + " recipient(s) are hidden by the status filters above."
+                        : "No individual recipients resolved for this report."}
+                </div>
             ) : (
                 <table className="rr-table">
                     <thead>
@@ -36,28 +53,36 @@ function RecipientTable({ report }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {report.recipients.map(rec => (
+                        {rows.map(rec => (
                             <tr key={rec.userId}>
                                 <td>{rec.name}</td>
-                                <td>{rec.email}</td>
+                                <td>{rec.noEmail ? "" : rec.email}</td>
                                 <td className="rr-via">{rec.via.join("; ")}</td>
                                 <td>
                                     {rec.unknown && <Chip kind="error">Unknown user</Chip>}
                                     {rec.archived && <Chip kind="error">Archived</Chip>}
                                     {rec.optedOut && <Chip kind="warn">Email reports off</Chip>}
-                                    {!rec.unknown && !rec.archived && !rec.optedOut && <Chip kind="ok">OK</Chip>}
+                                    {rec.noEmail && <Chip kind="warn">No email address</Chip>}
+                                    {issueFlags(rec).length === 0 && <Chip kind="ok">OK</Chip>}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             )}
+            {truncated > 0 && (
+                <div className="rr-hiddennote" style={{ marginTop: 8 }}>
+                    Showing the first {MAX_RENDERED_ROWS.toLocaleString()} of{" "}
+                    {report.visibleRecipients.length.toLocaleString()} recipients — use Export to
+                    Excel for the complete list.
+                </div>
+            )}
         </div>
     );
 }
 
 function ReportRow({ report, expanded, onToggle }) {
-    const broken = report.recipients.length === 0;
+    const broken = report.visibleRecipients.length === 0 && report.hiddenCount === 0;
     return (
         <div className={"rr-report" + (expanded ? " rr-report--open" : "")}>
             <button type="button" className="rr-report__head" onClick={onToggle} aria-expanded={expanded}>
@@ -68,8 +93,9 @@ function ReportRow({ report, expanded, onToggle }) {
                     {report.format && <Chip>{report.format}</Chip>}
                     {report.frequency && <Chip>{report.frequency}</Chip>}
                     <Chip kind={broken ? "error" : "count"}>
-                        {report.recipients.length} recipient{report.recipients.length === 1 ? "" : "s"}
+                        {report.visibleRecipients.length} receiving
                     </Chip>
+                    {report.hiddenCount > 0 && <Chip>+{report.hiddenCount} filtered</Chip>}
                 </span>
             </button>
             {expanded && <RecipientTable report={report} />}
@@ -86,6 +112,10 @@ export default function App({ api, mode, onClose, focusReportId }) {
     const [expanded, setExpanded] = useState(() => new Set());
     const [showDiag, setShowDiag] = useState(false);
     const [focusOnly, setFocusOnly] = useState(!!focusReportId);
+    // Hidden-by-default recipient categories; tick to reveal.
+    const [filters, setFilters] = useState({ archived: false, optedOut: false, noEmail: false });
+
+    const toggleFilter = key => setFilters(f => ({ ...f, [key]: !f[key] }));
 
     // Reports matching the report page the button was clicked from.
     const focusMatches = useMemo(() => {
@@ -121,19 +151,47 @@ export default function App({ api, mode, onClose, focusReportId }) {
 
     useEffect(load, [load]);
 
+    // Counts per category across all reports (for the filter labels).
+    const filterCounts = useMemo(() => {
+        const c = { archived: 0, optedOut: 0, noEmail: 0 };
+        if (!model) return c;
+        const seen = new Set();
+        for (const r of model.reports) {
+            for (const rec of r.recipients) {
+                if (seen.has(rec.userId)) continue;
+                seen.add(rec.userId);
+                for (const f of issueFlags(rec)) c[f]++;
+            }
+        }
+        return c;
+    }, [model]);
+
+    const recVisible = useCallback(rec => {
+        const flags = issueFlags(rec);
+        if (flags.length === 0) return true;
+        return flags.some(f => filters[f]);
+    }, [filters]);
+
     const filtered = useMemo(() => {
         if (!model) return [];
         const base = focusOnly && focusMatches.length > 0 ? focusMatches : model.reports;
         const q = query.trim().toLowerCase();
-        if (!q) return base;
-        return base.filter(r =>
+        const searched = !q ? base : base.filter(r =>
             r.name.toLowerCase().includes(q) ||
             r.recipients.some(rec =>
                 rec.name.toLowerCase().includes(q) ||
                 (rec.email || "").toLowerCase().includes(q)
             )
         );
-    }, [model, query, focusOnly, focusMatches]);
+        return searched.map(r => {
+            const visibleRecipients = r.recipients.filter(recVisible);
+            return {
+                ...r,
+                visibleRecipients,
+                hiddenCount: r.recipients.length - visibleRecipients.length
+            };
+        });
+    }, [model, query, focusOnly, focusMatches, recVisible]);
 
     const toggle = id => setExpanded(prev => {
         const next = new Set(prev);
@@ -141,8 +199,10 @@ export default function App({ api, mode, onClose, focusReportId }) {
         return next;
     });
 
-    const expandAll = () => setExpanded(new Set(filtered.map(r => r.id)));
-    const collapseAll = () => setExpanded(new Set());
+    const doExport = () => exportToExcel(
+        { ...model, reports: filtered.map(r => ({ ...r, recipients: r.visibleRecipients })) },
+        database
+    );
 
     return (
         <div className="rr-root zen-deprecated-styles">
@@ -153,7 +213,9 @@ export default function App({ api, mode, onClose, focusReportId }) {
                         <div className="rr-stats">
                             {model.totals.reportCount} emailed report{model.totals.reportCount === 1 ? "" : "s"}
                             {" · "}
-                            {model.totals.uniqueRecipientCount} unique recipient{model.totals.uniqueRecipientCount === 1 ? "" : "s"}
+                            {model.totals.receivingCount} unique recipient{model.totals.receivingCount === 1 ? "" : "s"} receiving
+                            {model.totals.uniqueRecipientCount > model.totals.receivingCount &&
+                                " · " + (model.totals.uniqueRecipientCount - model.totals.receivingCount) + " not receiving (see filters)"}
                         </div>
                     )}
                 </div>
@@ -162,7 +224,7 @@ export default function App({ api, mode, onClose, focusReportId }) {
                     <Button
                         type="primary"
                         disabled={loading || !model || model.totals.reportCount === 0}
-                        onClick={() => exportToExcel({ ...model, reports: filtered }, database)}
+                        onClick={doExport}
                     >
                         Export to Excel
                     </Button>
@@ -180,9 +242,26 @@ export default function App({ api, mode, onClose, focusReportId }) {
                     value={query}
                     onChange={e => setQuery(e.target.value)}
                 />
-                <Button type="tertiary" onClick={expandAll} disabled={loading}>Expand all</Button>
-                <Button type="tertiary" onClick={collapseAll} disabled={loading}>Collapse all</Button>
             </div>
+
+            {!loading && model && (
+                <div className="rr-filters">
+                    <span className="rr-filters__label">Also show:</span>
+                    <label>
+                        <input type="checkbox" checked={filters.archived} onChange={() => toggleFilter("archived")} />
+                        Archived/removed ({filterCounts.archived})
+                    </label>
+                    <label>
+                        <input type="checkbox" checked={filters.optedOut} onChange={() => toggleFilter("optedOut")} />
+                        Email reports off ({filterCounts.optedOut})
+                    </label>
+                    <label>
+                        <input type="checkbox" checked={filters.noEmail} onChange={() => toggleFilter("noEmail")} />
+                        No email address ({filterCounts.noEmail})
+                    </label>
+                    <span className="rr-hiddennote">Default view shows only recipients currently receiving the email.</span>
+                </div>
+            )}
 
             {error && (
                 <Banner type="error" header="Could not load report schedules" multiline>

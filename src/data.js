@@ -253,7 +253,8 @@ export function resolveSchedule(s, ctx) {
             email: u.name, // MyGeotab usernames are email addresses
             via: [...h.via],
             optedOut: u.isEmailReportEnabled === false,
-            archived: isArchived(u)
+            archived: isArchived(u),
+            noEmail: (u.name || "").indexOf("@") === -1
         };
     }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -286,7 +287,15 @@ export function buildModel({ schedules, users, groups, templates }) {
         .sort((a, b) => a.name.localeCompare(b.name));
 
     const uniqueRecipients = new Set();
-    for (const r of reports) for (const rec of r.recipients) uniqueRecipients.add(rec.userId);
+    const receivingRecipients = new Set();
+    for (const r of reports) {
+        for (const rec of r.recipients) {
+            uniqueRecipients.add(rec.userId);
+            if (!rec.unknown && !rec.archived && !rec.optedOut && !rec.noEmail) {
+                receivingRecipients.add(rec.userId);
+            }
+        }
+    }
 
     const unknownKeys = [...new Set(reports.flatMap(r => r.unknownKeys))];
 
@@ -295,6 +304,7 @@ export function buildModel({ schedules, users, groups, templates }) {
         totals: {
             reportCount: reports.length,
             uniqueRecipientCount: uniqueRecipients.size,
+            receivingCount: receivingRecipients.size,
             scheduleCount: (schedules || []).length
         },
         unknownKeys
