@@ -164,6 +164,44 @@ function refId(x) {
     return typeof x === "string" ? x : x && x.id;
 }
 
+/* ------------------------------------------------------------------ */
+/* Recipient removal (write operation)                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Remove a user from a report's INDIVIDUAL recipients list.
+ * Re-fetches the schedule right before writing so we never Set from a
+ * stale copy, and only touches the individual-recipients property.
+ * Group-based recipients cannot be removed per-report (that lives on the
+ * group / user settings), so callers should only offer this for
+ * recipients whose via includes "Individual".
+ * Requires the signed-in user to have CustomReportScheduleSet clearance;
+ * MyGeotab enforces that server-side.
+ */
+export async function removeIndividualRecipient(api, scheduleId, userId) {
+    const results = await pCall(api, "Get", {
+        typeName: "CustomReportSchedule",
+        search: { id: scheduleId }
+    });
+    const sched = results && results[0];
+    if (!sched) {
+        throw new Error("Report schedule not found - it may have been deleted. Refresh and try again.");
+    }
+    const found = firstPresent(sched, INDIVIDUAL_KEYS, v => Array.isArray(v));
+    if (!found) {
+        throw new Error("This report has no individual recipient list to remove from.");
+    }
+    const next = found.value.filter(entry => {
+        const id = refId(entry && entry.user ? entry.user : entry);
+        return id !== userId;
+    });
+    if (next.length === found.value.length) {
+        throw new Error("This person is not on the individual recipient list (they may receive the report via a group).");
+    }
+    sched[found.key] = next;
+    await pCall(api, "Set", { typeName: "CustomReportSchedule", entity: sched });
+}
+
 /**
  * Resolve one schedule into a normalized record.
  */

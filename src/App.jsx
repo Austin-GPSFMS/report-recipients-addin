@@ -3,7 +3,7 @@ import { Button } from "@geotab/zenith/dist/button/button";
 import { Banner } from "@geotab/zenith/dist/banner/banner";
 import { Waiting } from "@geotab/zenith/dist/waiting/waiting";
 import { EmptyState } from "@geotab/zenith/dist/emptyState/emptyState";
-import { loadAll, buildModel } from "./data.js";
+import { loadAll, buildModel, removeIndividualRecipient } from "./data.js";
 import { exportToExcel } from "./excel.js";
 
 function Chip({ kind, children }) {
@@ -21,7 +21,63 @@ function issueFlags(rec) {
 
 const MAX_RENDERED_ROWS = 1000;
 
-function RecipientTable({ report }) {
+/**
+ * One recipient row with an inline remove flow (X -> Remove? Yes/No).
+ * The X only appears for recipients on the report's INDIVIDUAL list;
+ * group-based recipients must be managed on the group or user instead.
+ */
+function RecipientRow({ rec, onRemove }) {
+    const [stage, setStage] = useState("idle"); // idle | confirm | busy
+    const removable = rec.via.includes("Individual") && typeof onRemove === "function";
+    return (
+        <tr>
+            <td>{rec.name}</td>
+            <td>{rec.noEmail
+                ? <span className="rr-username" title="Username only — not a deliverable email">{rec.email}</span>
+                : rec.email}</td>
+            <td className="rr-via">{rec.via.join("; ")}</td>
+            <td>
+                {rec.unknown && <Chip kind="error">Unknown user</Chip>}
+                {rec.archived && <Chip kind="error">Archived</Chip>}
+                {rec.optedOut && <Chip kind="warn">Email reports off</Chip>}
+                {rec.noEmail && <Chip kind="warn">No email address</Chip>}
+                {issueFlags(rec).length === 0 && <Chip kind="ok">OK</Chip>}
+            </td>
+            <td className="rr-remove-cell">
+                {removable && stage === "idle" && (
+                    <button
+                        type="button"
+                        className="rr-x"
+                        title="Remove from this report's individual recipient list"
+                        aria-label={"Remove " + rec.name + " from this report"}
+                        onClick={() => setStage("confirm")}
+                    >✕</button>
+                )}
+                {removable && stage === "confirm" && (
+                    <span className="rr-confirm">
+                        Remove?
+                        <button
+                            type="button"
+                            className="rr-confirm__yes"
+                            onClick={async () => {
+                                setStage("busy");
+                                const ok = await onRemove(rec);
+                                if (!ok) setStage("idle");
+                            }}
+                        >Yes</button>
+                        <button type="button" className="rr-confirm__no" onClick={() => setStage("idle")}>No</button>
+                    </span>
+                )}
+                {stage === "busy" && <span className="rr-confirm">Removing…</span>}
+                {!removable && rec.via.some(v => v.indexOf("Group:") === 0) && (
+                    <span className="rr-x-na" title="Received via a group — manage on the group or turn off the user's email reports">via group</span>
+                )}
+            </td>
+        </tr>
+    );
+}
+
+function RecipientTable({ report, onRemove }) {
     const rows = report.visibleRecipients.slice(0, MAX_RENDERED_ROWS);
     const truncated = report.visibleRecipients.length - rows.length;
     return (
@@ -50,24 +106,12 @@ function RecipientTable({ report }) {
                             <th>Email</th>
                             <th>Added via</th>
                             <th>Status</th>
+                            <th className="rr-remove-cell"></th>
                         </tr>
                     </thead>
                     <tbody>
                         {rows.map(rec => (
-                            <tr key={rec.userId}>
-                                <td>{rec.name}</td>
-                                <td>{rec.noEmail
-                                    ? <span className="rr-username" title="Username only — not a deliverable email">{rec.email}</span>
-                                    : rec.email}</td>
-                                <td className="rr-via">{rec.via.join("; ")}</td>
-                                <td>
-                                    {rec.unknown && <Chip kind="error">Unknown user</Chip>}
-                                    {rec.archived && <Chip kind="error">Archived</Chip>}
-                                    {rec.optedOut && <Chip kind="warn">Email reports off</Chip>}
-                                    {rec.noEmail && <Chip kind="warn">No email address</Chip>}
-                                    {issueFlags(rec).length === 0 && <Chip kind="ok">OK</Chip>}
-                                </td>
-                            </tr>
+                            <RecipientRow key={rec.userId} rec={rec} onRemove={onRemove} />
                         ))}
                     </tbody>
                 </table>
@@ -83,7 +127,7 @@ function RecipientTable({ report }) {
     );
 }
 
-function ReportRow({ report, expanded, onToggle, countLabel }) {
+function ReportRow({ report, expanded, onToggle, countLabel, onRemove }) {
     const broken = report.visibleRecipients.length === 0 && report.hiddenCount === 0;
     return (
         <div className={"rr-report" + (expanded ? " rr-report--open" : "")}>
@@ -100,7 +144,7 @@ function ReportRow({ report, expanded, onToggle, countLabel }) {
                     {report.hiddenCount > 0 && <Chip>+{report.hiddenCount} filtered</Chip>}
                 </span>
             </button>
-            {expanded && <RecipientTable report={report} />}
+            {expanded && <RecipientTable report={report} onRemove={onRemove} />}
         </div>
     );
 }
@@ -108,6 +152,7 @@ function ReportRow({ report, expanded, onToggle, countLabel }) {
 export default function App({ api, mode, onClose, focusReportId }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [actionError, setActionError] = useState(null);
     const [model, setModel] = useState(null);
     const [database, setDatabase] = useState("");
     const [query, setQuery] = useState("");
@@ -198,6 +243,46 @@ export default function App({ api, mode, onClose, focusReportId }) {
         });
     }, [model, query, focusOnly, focusMatches, recVisible]);
 
+    /**
+     * Remove `rec` from `reportId`'s individual list, then update the local
+     * model in place (no full refetch). Returns true on success.
+     */
+    const makeRemoveHandler = useCallback(reportId => async rec => {
+        setActionError(null);
+        try {
+            await removeIndividualRecipient(api, reportId, rec.userId);
+        } catch (e) {
+            setActionError((e && e.message) || String(e));
+            return false;
+        }
+        setModel(prev => {
+            if (!prev) return prev;
+            const reports = prev.reports.map(r => {
+                if (r.id !== reportId) return r;
+                const recipients = r.recipients
+                    .map(x => x.userId === rec.userId
+                        ? { ...x, via: x.via.filter(v => v !== "Individual") }
+                        : x)
+                    .filter(x => x.via.length > 0);
+                return { ...r, recipients };
+            });
+            const uniq = new Set();
+            const recv = new Set();
+            for (const r of reports) {
+                for (const x of r.recipients) {
+                    uniq.add(x.userId);
+                    if (!x.unknown && !x.archived && !x.optedOut && !x.noEmail) recv.add(x.userId);
+                }
+            }
+            return {
+                ...prev,
+                reports,
+                totals: { ...prev.totals, uniqueRecipientCount: uniq.size, receivingCount: recv.size }
+            };
+        });
+        return true;
+    }, [api]);
+
     const toggle = id => setExpanded(prev => {
         const next = new Set(prev);
         next.has(id) ? next.delete(id) : next.add(id);
@@ -282,6 +367,12 @@ export default function App({ api, mode, onClose, focusReportId }) {
                 </Banner>
             )}
 
+            {actionError && (
+                <Banner type="error" header="Could not remove recipient" multiline onClose={() => setActionError(null)}>
+                    {actionError}
+                </Banner>
+            )}
+
             {!loading && focusOnly && focusMatches.length > 0 && (
                 <div className="rr-focusbar">
                     <span>Showing recipients for this report only.</span>
@@ -307,6 +398,7 @@ export default function App({ api, mode, onClose, focusReportId }) {
                                 expanded={expanded.has(r.id)}
                                 onToggle={() => toggle(r.id)}
                                 countLabel={countLabel}
+                                onRemove={makeRemoveHandler(r.id)}
                             />
                         ))}
                     </div>

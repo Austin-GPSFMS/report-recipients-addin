@@ -1,4 +1,4 @@
-import { buildModel } from "./src/data.js";
+import { buildModel, removeIndividualRecipient } from "../src/data.js";
 
 const groups = [
   { id: "GroupCompanyId", name: "Company", children: [{ id: "g1" }, { id: "g2" }] },
@@ -44,4 +44,41 @@ const s4 = m.reports.find(r => r.id === "s4");
 assert(s4.recipients.length === 0, "empty report has zero recipients");
 assert(m.unknownKeys.includes("mysteryProp"), "diagnostics catches unknown keys");
 assert(m.totals.uniqueRecipientCount === 4, "unique recipients = 4");
+/* ---- removeIndividualRecipient (mock api) ---- */
+
+function mockApi(store) {
+    return {
+        call(method, params, ok, err) {
+            try {
+                if (method === "Get") {
+                    ok(store.schedules.filter(s => !params.search || s.id === params.search.id));
+                } else if (method === "Set") {
+                    store.lastSet = params.entity;
+                    store.schedules = store.schedules.map(s => s.id === params.entity.id ? params.entity : s);
+                    ok(params.entity.id);
+                } else {
+                    err(new Error("unsupported method " + method));
+                }
+            } catch (e) { err(e); }
+        }
+    };
+}
+
+const store = {
+    schedules: [{
+        id: "sX", destination: "EmailPdf", name: "T",
+        individualEmailRecipients: [{ id: "u1" }, { id: "u2" }]
+    }]
+};
+await removeIndividualRecipient(mockApi(store), "sX", "u1");
+assert(
+    store.lastSet.individualEmailRecipients.length === 1 &&
+    store.lastSet.individualEmailRecipients[0].id === "u2",
+    "removal Set sends filtered individual list"
+);
+let threw = false;
+try { await removeIndividualRecipient(mockApi(store), "sX", "uZZ"); } catch (e) { threw = true; }
+assert(threw, "removing a non-individual recipient throws instead of writing");
+assert(store.lastSet.individualEmailRecipients.length === 1, "failed removal did not write");
+
 console.log("DONE");
